@@ -1,0 +1,21 @@
+{
+  "gpt4o_mini": {
+    "model": "gpt-4o-mini",
+    "base_url": "https://api.openai.com",
+    "api_path": "/v1/chat/completions",
+    "api_key_env": "OPENAI_API_KEY",
+    "timeout": 120,
+    "max_retries": 3,
+    "retry_sleep": 2
+  },
+  "qwen3_8b_non_thinking": {
+    "model": "qwen3-8b",
+    "base_url": "https://dashscope.aliyuncs.com",
+    "api_path": "/compatible-mode/v1/chat/completions",
+    "api_key_env": "DASHSCOPE_API_KEY",
+    "enable_thinking": false,
+    "timeout": 120,
+    "max_retries": 3,
+    "retry_sleep": 2
+  }
+}
