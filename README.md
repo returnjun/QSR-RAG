@@ -12,6 +12,8 @@
 
 > **Release scope.** This repository contains the full QSR-RAG path for the paper's main experiments: three datasets, two backbone models, fixed lists of 500 questions, and one shared dense retrieval setup. Scores for comparison methods are reported for context; their separate implementations are outside the scope of this release.
 
+> **Reproducibility note (November 2026).** The paper scores below predate this change. The previous public release, commit `b50cdad`, included 2WikiMultiHopQA-specific deterministic kinship rewrites and kinship prompt guidance; the exact code revision used for every paper run has not been independently established. The current code removes those branches and sends such updates through the regular state updater. The paper scores have **not** been rerun with this change; treat the table as historical results, not as measured results for the current code. Use commit `b50cdad` to inspect the previous public implementation, or rerun the commands below to measure this version. Other dataset-conditioned guidance in the updater remains and is not covered by this change.
+
 ![Evidence verification and question-state updates in QSR-RAG](assets/qsr_workflow.png)
 
 ## Contents
@@ -44,7 +46,7 @@ The updated reasoning question guides the next round, while the original target 
 
 ## Main results
 
-The table below reproduces the main results from the [Chinese paper](paper/qsr_rag_acl.pdf). Each dataset uses **500 development-set questions** selected with **seed 43**. EM is answer exact match; F1 is token-level answer F1. All values are percentages.
+The table below reports the main results from the [Chinese paper](paper/qsr_rag_acl.pdf), obtained before the code change described above. Each dataset uses **500 development-set questions** selected with **seed 43**. EM is answer exact match; F1 is token-level answer F1. All values are percentages.
 
 | Backbone | Dataset | QSR-RAG EM | QSR-RAG F1 | Best comparison F1 |
 | :--- | :--- | ---: | ---: | ---: |

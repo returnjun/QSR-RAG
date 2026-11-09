@@ -397,33 +397,6 @@ Do not append answer_exact using:
 "specifically", "namely", or equivalent answer-revealing wording.
 """
 
-TWO_WIKI_KINSHIP_GUIDANCE = """KINSHIP SLOT SAFETY
-
-Use only the kinship edge actually resolved by RESOLUTION TARGET.
-
-Do not move answer_exact to a different family relation.
-
-If the supplied relation does not resolve a genuine intermediate slot of
-CURRENT QUESTION, leave it unused.
-
-For example:
-
-CURRENT:
-What nationality is X's father?
-
-RESOLUTION:
-father of X = John
-
-CORRECT:
-What nationality is John?
-
-INCORRECT:
-What nationality is John's father?
-
-A resolved father of X does NOT help rewrite:
-Who is X's mother?
-"""
-
 MUSIQUE_NESTED_GUIDANCE = """NESTED DEPENDENCY UPDATE
 
 CURRENT QUESTION contains nested unresolved relations.
@@ -1122,120 +1095,6 @@ def rewrite_question_with_resolutions(
             routing_tags=["NO_SAFE_BINDING"],
             llm_called=False,
         )
-    if (
-        allow_deterministic_binding
-        and dataset_name == "2wikimultihopqa"
-        and _requires_2wiki_step_keep(
-            before, binding_resolutions
-        )
-    ):
-        return rewrite_result(
-            success=False,
-            before=before,
-            after=before,
-            used_query_ids=[],
-            validation_errors=[],
-            raw_text="",
-            parse_error=None,
-            prompt="",
-            question_version=question_version,
-            routing_tags=["2WIKI_STEP_KEEP"],
-            deterministic_reason="2WIKI_STEP_KEEP",
-            llm_called=False,
-        )
-
-    if allow_deterministic_binding and dataset_name == "2wikimultihopqa":
-        immediate = try_deterministic_2wiki_immediate_kinship(
-            current_question=before,
-            resolutions=binding_resolutions,
-        )
-        if immediate is not None:
-            if immediate["action"] == "KEEP":
-                return rewrite_result(
-                    success=False,
-                    before=before,
-                    after=before,
-                    used_query_ids=[],
-                    validation_errors=[],
-                    raw_text="",
-                    parse_error=None,
-                    prompt="",
-                    question_version=question_version,
-                    routing_tags=["2WIKI_IMMEDIATE_KINSHIP_KEEP"],
-                    deterministic_reason=str(immediate["reason"]),
-                    llm_called=False,
-                )
-            candidate = str(immediate["updated_question"])
-            used_ids = list(immediate["used_query_ids"])
-            validation_errors = validate_resolution_rewrite(
-                dataset=dataset,
-                old_question=before,
-                new_question=candidate,
-                resolutions=prepared_resolutions,
-                used_query_ids=used_ids,
-            )
-            validation_errors.extend(
-                validate_rewrite_policy(
-                    policy=policy,
-                    old_question=before,
-                    new_question=candidate,
-                    resolutions=prepared_resolutions,
-                    used_query_ids=used_ids,
-                )
-            )
-            return rewrite_result(
-                success=not validation_errors,
-                before=before,
-                after=candidate,
-                used_query_ids=used_ids,
-                validation_errors=validation_errors,
-                raw_text="",
-                parse_error=None,
-                prompt="",
-                question_version=question_version,
-                routing_tags=["2WIKI_DETERMINISTIC_IMMEDIATE_KINSHIP"],
-                deterministic_reason=str(immediate["reason"]),
-                llm_called=False,
-            )
-
-        deterministic = try_deterministic_2wiki_kinship(
-            current_question=before,
-            resolutions=binding_resolutions,
-        )
-        if deterministic is not None:
-            candidate = str(deterministic["updated_question"])
-            used_ids = list(deterministic["used_query_ids"])
-            validation_errors = validate_resolution_rewrite(
-                dataset=dataset,
-                old_question=before,
-                new_question=candidate,
-                resolutions=prepared_resolutions,
-                used_query_ids=used_ids,
-            )
-            validation_errors.extend(
-                validate_rewrite_policy(
-                    policy=policy,
-                    old_question=before,
-                    new_question=candidate,
-                    resolutions=prepared_resolutions,
-                    used_query_ids=used_ids,
-                )
-            )
-            return rewrite_result(
-                success=not validation_errors,
-                before=before,
-                after=candidate,
-                used_query_ids=used_ids,
-                validation_errors=validation_errors,
-                raw_text="",
-                parse_error=None,
-                prompt="",
-                question_version=question_version,
-                routing_tags=["2WIKI_DETERMINISTIC_KINSHIP"],
-                deterministic_reason=str(deterministic["reason"]),
-                llm_called=False,
-            )
-
     location_container = (
         try_deterministic_location_container(
             current_question=before,
@@ -1882,23 +1741,6 @@ _ANSWER_HEADS = {
     "award",
     "language",
 }
-_KINSHIP_COMPOSITION = {
-    "paternal grandfather": ("father", "father"),
-    "paternal grandmother": ("father", "mother"),
-    "maternal grandfather": ("mother", "father"),
-    "maternal grandmother": ("mother", "mother"),
-    "father-in-law": ("spouse", "father"),
-    "mother-in-law": ("spouse", "mother"),
-}
-_STEP_RELATIONS = {"stepmother", "stepfather"}
-_IMMEDIATE_KINSHIP_RELATIONS = {"father", "mother", "husband", "wife", "spouse"}
-_KINSHIP_TERMS = re.compile(
-    r"\b(?:father|mother|parent|grandfather|grandmother|"
-    r"spouse|husband|wife|uncle|aunt|sibling|brother|"
-    r"sister|stepmother|stepfather|in-law)\b",
-    flags=re.IGNORECASE,
-)
-
 MULTIPLE_NONE = "NONE"
 MULTIPLE_SAFE_SET = "SAFE_SET"
 MULTIPLE_UNSAFE_BRANCH = "UNSAFE_BRANCH"
@@ -2144,17 +1986,6 @@ def _looks_like_nested_chain(question: str) -> bool:
     return sum(bool(re.search(pattern, text)) for pattern in patterns) >= 2
 
 
-def _looks_like_kinship_case(
-    question: str, resolutions: list[dict[str, Any]]
-) -> bool:
-    if not _KINSHIP_TERMS.search(question):
-        return False
-    return any(
-        _KINSHIP_TERMS.search(str(fact.get("resolution_target") or ""))
-        for fact in resolutions
-    )
-
-
 def collect_rewrite_guidance(
     *,
     dataset: str,
@@ -2181,111 +2012,10 @@ def collect_rewrite_guidance(
     if dataset_name == "hotpotqa" and _has_embedded_wh_slot(current_question):
         guidance.append(HOTPOT_EMBEDDED_WH_GUIDANCE)
         tags.append("HOTPOT_EMBEDDED_WH")
-    if dataset_name == "2wikimultihopqa" and _looks_like_kinship_case(
-        current_question, resolutions
-    ):
-        guidance.append(TWO_WIKI_KINSHIP_GUIDANCE)
-        tags.append("2WIKI_KINSHIP")
     if dataset_name == "musique" and _looks_like_nested_chain(current_question):
         guidance.append(MUSIQUE_NESTED_GUIDANCE)
         tags.append("MUSIQUE_NESTED")
     return guidance, tags
-
-
-def _requires_2wiki_step_keep(
-    question: str, resolutions: list[dict[str, Any]]
-) -> bool:
-    text = _normalized_text(question)
-    if not any(re.search(rf"\b{relation}\b", text) for relation in _STEP_RELATIONS):
-        return False
-    return any(
-        re.search(
-            r"\b(?:father|mother)\s+of\b",
-            _normalized_text(fact.get("resolution_target") or ""),
-        )
-        for fact in resolutions
-    )
-
-
-def try_deterministic_2wiki_immediate_kinship(
-    *,
-    current_question: str,
-    resolutions: list[dict[str, Any]],
-) -> dict[str, Any] | None:
-    if len(resolutions) != 1:
-        return None
-    fact = resolutions[0]
-    target = _normalized_text(fact.get("resolution_target") or "")
-    target_match = re.match(
-        r"^(father|mother|husband|wife|spouse)\s+of\s+(.+)$", target
-    )
-    answer = str(fact.get("answer_exact") or "").strip()
-    if not target_match or not answer:
-        return None
-    resolved_relation = target_match.group(1)
-    old = str(current_question or "").strip()
-
-    direct_patterns = (
-        rf"^who\s+is\s+(.+?)(?:'s|’s)\s+({_kinship_alternation()})\s*\?$",
-        rf"^who\s+is\s+the\s+({_kinship_alternation()})\s+of\s+(.+?)\s*\?$",
-        rf"^who\s+did\s+(.+?)\s+(?:marry|wed)\s*\?$",
-    )
-    direct_relation = ""
-    for index, pattern in enumerate(direct_patterns):
-        match = re.match(pattern, old, flags=re.IGNORECASE)
-        if not match:
-            continue
-        if index == 0:
-            direct_relation = _normalized_text(match.group(2))
-        elif index == 1:
-            direct_relation = _normalized_text(match.group(1))
-        else:
-            direct_relation = "spouse"
-        break
-    if direct_relation:
-        if _kinship_relations_match(direct_relation, resolved_relation):
-            return {
-                "action": "KEEP",
-                "updated_question": old,
-                "used_query_ids": [],
-                "reason": "DETERMINISTIC_2WIKI_IMMEDIATE_DIRECT_ANSWER_KEEP",
-            }
-        return {
-            "action": "KEEP",
-            "updated_question": old,
-            "used_query_ids": [],
-            "reason": "DETERMINISTIC_2WIKI_IMMEDIATE_RELATION_MISMATCH_KEEP",
-        }
-
-    subject = target_match.group(2).strip()
-    possessive = rf"{re.escape(subject)}(?:'s|’s)\s+{re.escape(resolved_relation)}"
-    of_form = rf"the\s+{re.escape(resolved_relation)}\s+of\s+{re.escape(subject)}"
-    if not (re.search(possessive, _normalized_text(old)) or re.search(of_form, _normalized_text(old))):
-        return None
-    updated = re.sub(possessive, answer, old, count=1, flags=re.IGNORECASE)
-    if updated == old:
-        updated = re.sub(of_form, answer, old, count=1, flags=re.IGNORECASE)
-    if updated == old:
-        return None
-    return {
-        "action": "UPDATE",
-        "updated_question": updated,
-        "used_query_ids": [str(fact.get("query_id") or "")],
-        "reason": "DETERMINISTIC_2WIKI_IMMEDIATE_OUTER_ATTRIBUTE",
-    }
-
-
-def _kinship_alternation() -> str:
-    return "|".join(sorted(_IMMEDIATE_KINSHIP_RELATIONS))
-
-
-def _kinship_relations_match(question_relation: str, target_relation: str) -> bool:
-    if question_relation == target_relation:
-        return True
-    return "spouse" in {question_relation, target_relation} and {
-        question_relation,
-        target_relation,
-    } <= {"husband", "wife", "spouse"}
 
 
 def try_deterministic_location_container(
@@ -2340,44 +2070,6 @@ def try_deterministic_location_container(
         "used_query_ids": [str(fact.get("query_id") or "")],
         "reason": "DETERMINISTIC_LOCATION_CONTAINER",
     }
-
-
-def try_deterministic_2wiki_kinship(
-    *,
-    current_question: str,
-    resolutions: list[dict[str, Any]],
-) -> dict[str, Any] | None:
-    if len(resolutions) != 1:
-        return None
-    fact = resolutions[0]
-    old = str(current_question or "").strip()
-    old_norm = _normalized_text(old)
-    target = _normalized_text(fact.get("resolution_target") or "")
-    answer = str(fact.get("answer_exact") or "").strip()
-    if not answer:
-        return None
-    for composite, (required_inner, remaining_outer) in _KINSHIP_COMPOSITION.items():
-        if composite not in old_norm or not re.search(
-            rf"\b{re.escape(required_inner)}\s+of\b", target
-        ):
-            continue
-        possessive = re.match(
-            rf"^who\s+is\s+(.+?)(?:'s|’s)\s+{re.escape(composite)}\s*\?$",
-            old,
-            flags=re.IGNORECASE,
-        )
-        of_form = re.match(
-            rf"^who\s+is\s+the\s+{re.escape(composite)}\s+of\s+(.+?)\s*\?$",
-            old,
-            flags=re.IGNORECASE,
-        )
-        if possessive or of_form:
-            return {
-                "updated_question": f"Who is {answer}'s {remaining_outer}?",
-                "used_query_ids": [str(fact.get("query_id") or "")],
-                "reason": "DETERMINISTIC_2WIKI_KINSHIP",
-            }
-    return None
 
 
 def _resolution_value_appears(fact: dict[str, Any], question: str) -> bool:
